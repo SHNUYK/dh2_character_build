@@ -17,3 +17,13 @@ def roll_minus():
 
 def roll_normal():
     return 20 + d10() + d10()
+
+
+def roll_wounds(base):
+    return base + (secrets.randbelow(5) + 1)
+
+
+def roll_blessing(base_fate, threshold):
+    r = d10()
+    bonus = 1 if r >= threshold else 0
+    return base_fate + bonus, r
