@@ -1,17 +1,19 @@
 import secrets
 
 
+def d10():
+    return secrets.randbelow(10) + 1
+
+
 def roll_plus():
-    rolls = [secrets.randbelow(10) + 1 for _ in range(3)]
-    rolls.sort(reverse=True)
-    return 20 + rolls[0] + rolls[1]
+    r = sorted([d10(), d10(), d10()], reverse=True)
+    return 20 + r[0] + r[1]
 
 
 def roll_minus():
-    rolls = [secrets.randbelow(10) + 1 for _ in range(3)]
-    rolls.sort()
-    return 20 + rolls[0] + rolls[1]
+    r = sorted([d10(), d10(), d10()])
+    return 20 + r[0] + r[1]
 
 
 def roll_normal():
-    return 20 + (secrets.randbelow(10) + 1) + (secrets.randbelow(10) + 1)
+    return 20 + d10() + d10()
