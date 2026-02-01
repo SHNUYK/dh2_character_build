@@ -5,9 +5,8 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 
-from states import CharacterCreation
-from dice import roll_plus, roll_minus, roll_normal
-from data import HOMEWORLDS
+from states import Creation
+from data import HOMEWORLDS, BACKGROUNDS, ROLES
 
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -15,68 +14,58 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 
-@dp.message_handler(commands=["start", "wakeup"])
-async def start_creation(message: types.Message, state: FSMContext):
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message, state: FSMContext):
     await state.finish()
-    await message.answer("Введите количество опыта для создаваемого персонажа (целое число больше 0):")
-    await CharacterCreation.waiting_for_xp.set()
+    kb = InlineKeyboardMarkup()
+    for k, w in HOMEWORLDS.items():
+        kb.add(InlineKeyboardButton(w["name"], callback_data=f"world:{k}"))
+    await message.answer("Выберите родной мир:", reply_markup=kb)
+    await Creation.choosing_world.set()
 
 
-@dp.message_handler(commands=["help"])
-async def help_command(message: types.Message):
-    text = (
-        "/start или /wakeup — начать создание персонажа\n"
-        "/help — справка\n\n"
-        "Создание персонажа идёт пошагово с помощью кнопок."
-    )
-    await message.answer(text)
-
-
-@dp.message_handler(state=CharacterCreation.waiting_for_xp)
-async def set_xp(message: types.Message, state: FSMContext):
-    if not message.text.isdigit() or int(message.text) <= 0:
-        await message.answer("Опыт должен быть целым числом больше 0.")
-        return
-
-    await state.update_data(xp=int(message.text))
+@dp.callback_query_handler(lambda c: c.data.startswith("world:"), state=Creation.choosing_world)
+async def choose_world(callback: types.CallbackQuery, state: FSMContext):
+    key = callback.data.split(":")[1]
+    await state.update_data(world=HOMEWORLDS[key])
 
     kb = InlineKeyboardMarkup()
-    for key, world in HOMEWORLDS.items():
-        kb.add(InlineKeyboardButton(world["name"], callback_data=f"world:{key}"))
+    for k, bg in BACKGROUNDS.items():
+        kb.add(InlineKeyboardButton(bg["name"], callback_data=f"bg:{k}"))
 
-    await message.answer("Выберите родной мир:", reply_markup=kb)
-    await CharacterCreation.choosing_homeworld.set()
+    await callback.message.answer("Выберите предысторию:", reply_markup=kb)
+    await Creation.choosing_background.set()
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith("world:"), state=CharacterCreation.choosing_homeworld)
-async def choose_world(callback: types.CallbackQuery, state: FSMContext):
-    world_key = callback.data.split(":")[1]
-    world = HOMEWORLDS[world_key]
+@dp.callback_query_handler(lambda c: c.data.startswith("bg:"), state=Creation.choosing_background)
+async def choose_bg(callback: types.CallbackQuery, state: FSMContext):
+    key = callback.data.split(":")[1]
+    await state.update_data(background=BACKGROUNDS[key])
 
-    plus_values = [roll_plus(), roll_plus()]
-    minus_value = roll_minus()
-    normal_values = [roll_normal() for _ in range(6)]
+    kb = InlineKeyboardMarkup()
+    for k, r in ROLES.items():
+        kb.add(InlineKeyboardButton(r["name"], callback_data=f"role:{k}"))
 
-    await state.update_data(
-        homeworld=world,
-        rolls={
-            "plus": plus_values,
-            "minus": minus_value,
-            "normal": normal_values
-        },
-        characteristics={}
-    )
+    await callback.message.answer("Выберите роль:", reply_markup=kb)
+    await Creation.choosing_role.set()
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("role:"), state=Creation.choosing_role)
+async def choose_role(callback: types.CallbackQuery, state: FSMContext):
+    key = callback.data.split(":")[1]
+    await state.update_data(role=ROLES[key])
+
+    data = await state.get_data()
 
     text = (
-        "Броски характеристик выполнены.\n\n"
-        f"Значения с плюсом: {plus_values}\n"
-        f"Значение с минусом: {minus_value}\n"
-        f"Обычные значения: {normal_values}\n\n"
-        "Далее вы будете распределять значения по характеристикам."
+        "Персонаж создан (TEST BUILD)\n\n"
+        f"Мир: {data['world']['name']}\n"
+        f"Предыстория: {data['background']['name']}\n"
+        f"Роль: {data['role']['name']}"
     )
 
     await callback.message.answer(text)
-    await CharacterCreation.assigning_characteristics.set()
+    await Creation.finished.set()
 
 
 if __name__ == "__main__":
